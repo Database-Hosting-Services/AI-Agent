@@ -15,9 +15,11 @@ import (
 )
 
 type RAGConfig struct {
-	DbClient     *pinecone.Client
-	GeminiClient *genai.Client
-	IndexHost 	 string
+	DbClient       *pinecone.Client
+	GeminiClient   *genai.Client
+	IndexHost      string
+	EmbeddingModel *genai.EmbeddingModel
+	GenerativeModel *genai.GenerativeModel
 }
 
 var rag *RAGConfig
@@ -48,14 +50,25 @@ func init() {
 		log.Fatalf("Failed to initialize Gemini client: %v", err)
 	}
 
-	model := geminiClient.EmbeddingModel(os.Getenv("GEMINI_EMBEDDING_MODEL"))
+	// get the embedding model
+	embeddingModel := geminiClient.EmbeddingModel(os.Getenv("GEMINI_EMBEDDING_MODEL"))
 
-	if res, err := model.EmbedContent(context.Background(), genai.Text("Hi, Gemini")); err != nil || res == nil {
+	if res, err := embeddingModel.EmbedContent(context.Background(), genai.Text("Hi, Gemini")); err != nil || res == nil {
 		if err == nil {
 			err = errors.New("model returned a nil result")
 		}
 		geminiClient.Close()
 		log.Fatalf("connection error while trying to connect to gemini: %s\n ERROR: %s", os.Getenv("GEMINI_EMBEDDING_MODEL"), err.Error())
+	}
+
+	// get the generative model
+	generativeModel := geminiClient.GenerativeModel(os.Getenv("GEMINI_MODEL"))
+	if res, err := generativeModel.GenerateContent(context.Background(), genai.Text("Hi, Gemini")); err != nil || res == nil {
+		if err == nil {
+			err = errors.New("model returned a nil result")
+		}
+		geminiClient.Close()
+		log.Fatalf("connection error while trying to connect to gemini: %s\n ERROR: %s", os.Getenv("GEMINI_MODEL"), err.Error())
 	}
 
 	// connect to the Vector database
@@ -100,10 +113,12 @@ func init() {
 		log.Printf("Retrieved index host: %s\n", indexHost)
 		log.Printf("Index dimension: %d\n", idx.Dimension)
 	}
-	
+
 	rag = &RAGConfig{
 		GeminiClient: geminiClient,
-		DbClient: pineconeClient,
-		IndexHost: indexHost,
+		DbClient:     pineconeClient,
+		IndexHost:    indexHost,
+		EmbeddingModel: embeddingModel,
+		GenerativeModel: generativeModel,
 	}
 }
