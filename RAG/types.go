@@ -5,14 +5,7 @@ import (
 )
 
 type Schema struct {
-	Info   SchemaInfo           `json:"INFO"`
 	Tables map[string]TableInfo `json:"TABLES"`
-}
-
-type SchemaInfo struct {
-	URL        string `json:"URL"`
-	License    string `json:"LICENSE"`
-	Permissive bool   `json:"PERMISSIVE"`
 }
 
 type TableInfo struct {

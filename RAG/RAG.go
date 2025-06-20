@@ -47,17 +47,7 @@ Your response should include:
 Format your response with clear sections and provide executable SQL when applicable.
 the final schema changes should be headed with the keyword "SCHEMA CHANGES"
 and should be in the following format:
-{
-	"TABLE_NAME": {
-		"COLUMN_NAME": {
-			"TYPE": DATA_TYPE,
-			"NULLABLE": BOOLEAN,
-			"DEFAULT": DEFAULT_VALUE,
-			"PRIMARY_KEY": BOOLEAN,
-			"FOREIGN_KEY": FOREIGN_KEY_NAME,
-		}
-	}
-}
+
 	`
 )
 
