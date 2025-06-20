@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/google/generative-ai-go/genai"
 	"github.com/pinecone-io/go-pinecone/pinecone"
@@ -18,13 +19,46 @@ You are a database system design expert. Your task is to analyze SQL schemas and
 
 Given the following context use the resources and the instructions to answer the user request:
 resources:
-{resources}
+%s
 
 CURRENT DATABASE SCHEMA:
-{schema}
+%s
+
+The schema is provided in JSON format with the following structure:
+{
+  "TABLES": {
+    "table_name": {
+      "COLUMNS": {
+        "column_name": {
+          "TYPE": "data_type",
+          "NULLABLE": true/false,
+          "UNIQUE": true/false,
+          "DEFAULT": "default_value",
+          "CHECKS": [],
+          "IS_PRIMARY": true/false,
+          "IS_INDEX": true/false,
+          "COMMENT": "column description"
+        }
+      },
+      "PRIMARY_KEYS": ["column1", "column2"],
+      "FOREIGN_KEYS": [
+        {
+          "COLUMNS": ["local_column"],
+          "FOREIGN_TABLE": "referenced_table",
+          "REFERRED_COLUMNS": ["referenced_column"],
+          "ON_DELETE": "CASCADE/RESTRICT/SET NULL",
+          "ON_UPDATE": "CASCADE/RESTRICT/SET NULL"
+        }
+      ],
+      "CHECKS": [],
+      "INDEXES": [["column1"], ["column1", "column2"]],
+      "COMMENT": "table description"
+    }
+  }
+}
 
 USER REQUEST:
-{request}
+%s
 
 Please analyze the request and provide recommendations that follow these database system design principles:
 
@@ -45,16 +79,25 @@ Your response should include:
 - Any potential risks or considerations for the modification
 
 Format your response with clear sections and provide executable SQL when applicable.
-the final schema changes should be headed with the keyword "SCHEMA CHANGES"
-and should be in the following format:
+The final schema changes should be headed with the keyword "SCHEMA CHANGES" in the following format:
+# SCHEMA CHANGES
+{schema_changes}
+# END SCHEMA CHANGES
+and should be in the json format provided above.
+also add a section with headed with the keyword "Schema DDL" with the DDL statements to implement the changes based on old schema(provided above in json format) and new schema(your response).
 
+The schema DDL should be in the following format:
+# SCHEMA DDL
+{schema_ddl}
+# END SCHEMA DDL
+with are the DDL statements written in sql.
 	`
 )
 
-
 type AgentResponse struct {
-	Response string
-	SchemaChanges string
+	Response      string `json:"response"`
+	SchemaChanges string `json:"schema_changes"`
+	SchemaDDL     string `json:"schema_ddl"`
 }
 
 type RAGmodel interface {
@@ -103,7 +146,7 @@ func (r *RAGConfig) Match(namespace string, query string, topK int) ([]*pinecone
 	return results.Matches, nil
 }
 
-func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, topK int) ([]*pinecone.ScoredVector, error) {
+func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error) {
 	if topK == 0 {
 		topK = DEFAULT_TOP_K
 	}
@@ -147,5 +190,61 @@ func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, to
 		return nil, err
 	}
 
-	
+	// concatenate the response
+	responseText := ""
+	for _, part := range response.Candidates[0].Content.Parts {
+		if textPart, ok := part.(genai.Text); ok {
+			responseText += string(textPart)
+		}
+	}
+
+	// extract the schema changes by looking for the keyword "SCHEMA CHANGES" from the responseText
+	schemaChanges := ""
+	schemaDDL := ""
+
+	// Split response into lines for parsing
+	lines := strings.Split(responseText, "\n")
+
+	// Extract schema changes between markers
+	inSchemaChanges := false
+	inSchemaDDL := false
+	schemaChangesLines := []string{}
+	schemaDDLLines := []string{}
+
+	for _, line := range lines {
+		if strings.Contains(line, "# SCHEMA CHANGES") {
+			inSchemaChanges = true
+			continue
+		}
+		if strings.Contains(line, "# END SCHEMA CHANGES") {
+			inSchemaChanges = false
+			continue
+		}
+		if strings.Contains(line, "# SCHEMA DDL") {
+			inSchemaDDL = true
+			continue
+		}
+		if strings.Contains(line, "# END SCHEMA DDL") {
+			inSchemaDDL = false
+			continue
+		}
+
+		if inSchemaChanges {
+			schemaChangesLines = append(schemaChangesLines, line)
+		}
+		if inSchemaDDL {
+			schemaDDLLines = append(schemaDDLLines, line)
+		}
+	}
+
+	// Join the extracted lines
+	schemaChanges = strings.TrimSpace(strings.Join(schemaChangesLines, "\n"))
+	schemaDDL = strings.TrimSpace(strings.Join(schemaDDLLines, "\n"))
+
+	// Return AgentResponse
+	return &AgentResponse{
+		Response:      responseText,
+		SchemaChanges: schemaChanges,
+		SchemaDDL:     schemaDDL,
+	}, nil
 }
