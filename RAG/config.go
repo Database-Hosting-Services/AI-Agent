@@ -22,7 +22,7 @@ type RAGConfig struct {
 	GenerativeModel *genai.GenerativeModel
 }
 
-var rag *RAGConfig
+var Rag RAGmodel
 
 func init() {
 	// read the dotenv file
@@ -32,6 +32,9 @@ func init() {
 		log.Fatalf("Failed to get file path")
 	}
 	dir := filepath.Dir(filename)
+	// get the parent directory
+	dir = filepath.Dir(dir)
+	// get the parent directory
 	targetFiledir := filepath.Join(dir, ".env")
 
 	if err := godotenv.Load(targetFiledir); err != nil {
@@ -114,7 +117,7 @@ func init() {
 		log.Printf("Index dimension: %d\n", idx.Dimension)
 	}
 
-	rag = &RAGConfig{
+	Rag = &RAGConfig{
 		GeminiClient: geminiClient,
 		DbClient:     pineconeClient,
 		IndexHost:    indexHost,

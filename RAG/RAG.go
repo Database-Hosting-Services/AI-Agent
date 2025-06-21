@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -24,8 +25,8 @@ type AgentResponse struct {
 
 type RAGmodel interface {
 	Embed(text string) ([]float32, error)
-	Query(query string, topK int) ([]string, error)
-	Upsert(id string, vector []float32, metadata map[string]string) error
+	QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error)
+	// Upsert(id string, vector []float32, metadata map[string]string) error
 }
 
 // implement the RAGmodel interface for the RAGConfig
@@ -121,47 +122,16 @@ func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, to
 	}
 
 	// extract the schema changes by looking for the keyword "SCHEMA CHANGES" from the responseText
-	schemaChanges := ""
-	schemaDDL := ""
+	// Regex patterns to match code blocks
+	jsonRe := regexp.MustCompile("(?s)```json\\s*(.*?)```")
+	sqlRe := regexp.MustCompile("(?s)```sql\\s*(.*?)```")
 
-	// Split response into lines for parsing
-	lines := strings.Split(responseText, "\n")
-
-	// Extract schema changes between markers
-	inSchemaChanges := false
-	inSchemaDDL := false
-	schemaChangesLines := []string{}
-	schemaDDLLines := []string{}
-
-	for _, line := range lines {
-		if strings.Contains(line, "# SCHEMA CHANGES") {
-			inSchemaChanges = true
-			continue
-		}
-		if strings.Contains(line, "# END SCHEMA CHANGES") {
-			inSchemaChanges = false
-			continue
-		}
-		if strings.Contains(line, "# SCHEMA DDL") {
-			inSchemaDDL = true
-			continue
-		}
-		if strings.Contains(line, "# END SCHEMA DDL") {
-			inSchemaDDL = false
-			continue
-		}
-
-		if inSchemaChanges {
-			schemaChangesLines = append(schemaChangesLines, line)
-		}
-		if inSchemaDDL {
-			schemaDDLLines = append(schemaDDLLines, line)
-		}
-	}
-
+	// Extract code blocks
+	jsonMatch := jsonRe.FindStringSubmatch(responseText)
+	sqlMatch := sqlRe.FindStringSubmatch(responseText)
 	// Join the extracted lines
-	schemaChanges = strings.TrimSpace(strings.Join(schemaChangesLines, "\n"))
-	schemaDDL = strings.TrimSpace(strings.Join(schemaDDLLines, "\n"))
+	schemaChanges := strings.TrimSpace(jsonMatch[1])
+	schemaDDL := strings.TrimSpace(sqlMatch[1])
 
 	// Return AgentResponse
 	return &AgentResponse{

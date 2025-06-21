@@ -60,23 +60,17 @@ const (
 	
 	Your response should include:
 	- Analysis of the current schema structure
-	- Identification of any existing design issues
+	- Identification of any existing design issues and solve them
 	- Specific SQL DDL statements to implement the requested changes
 	- Explanation of how the changes improve the system design
 	- Any potential risks or considerations for the modification
 	
 	Format your response with clear sections and provide executable SQL when applicable.
-	The final schema changes should be headed with the keyword "SCHEMA CHANGES" in the following format:
-	# SCHEMA CHANGES
-	{schema_changes}
-	# END SCHEMA CHANGES
+	The final schema changes should be headed with the keyword "SCHEMA CHANGES" and would be the only json code in the response
 	and should be in the json format provided above.
 	also add a section with headed with the keyword "Schema DDL" with the DDL statements to implement the changes based on old schema(provided above in json format) and new schema(your response).
 	
-	The schema DDL should be in the following format:
-	# SCHEMA DDL
-	{schema_ddl}
-	# END SCHEMA DDL
-	with are the DDL statements written in sql.
+	The schema DDL should be the only sql code in the response
+	with are the DDL statements written in sql but for PostgreSQL that is very important.
 		`
 )
