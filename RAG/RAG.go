@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/google/generative-ai-go/genai"
-	"github.com/pinecone-io/go-pinecone/pinecone"
+	"github.com/pinecone-io/go-pinecone/v4/pinecone"
 )
 
 const (
@@ -29,6 +29,7 @@ type AgentResponse struct {
 
 type RAGmodel interface {
 	Embed(text string) ([]float32, error)
+	Match(namespace string, query string, topK int) ([]*pinecone.ScoredVector, error)
 	QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error)
 	// Upsert(id string, vector []float32, metadata map[string]string) error
 }

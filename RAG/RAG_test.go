@@ -1,8 +1,12 @@
 package RAG_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"testing"
 
@@ -83,4 +87,96 @@ func TestRAG(t *testing.T) {
 
 	// save the schema DDL to schema_ddl.sql
 	os.WriteFile("testIO/schema_ddl.sql", []byte(response.SchemaDDL), 0644)
+}
+
+func TestEmbed(t *testing.T) {
+	before()
+	defer after()
+	rag := RAG.Rag
+	// read the query from the file query.txt
+	query, err := os.ReadFile("testIO/query.txt")
+	if err != nil {
+		log.Fatalf("Failed to read query file: %v", err)
+	}
+	// embed the query
+	embedding, err := rag.Embed(string(query))
+	if err != nil {
+		log.Fatalf("Failed to embed query: %v", err)
+	}
+	// save the embedding to the file embedding.txt
+	// output the embedding between each element with a comma
+	str := ""
+	for _, element := range embedding {
+		str += fmt.Sprintf("%f,", element)
+	}
+	os.WriteFile("testIO/embedding.txt", []byte(str), 0644)
+}
+
+func TestMatch(t *testing.T) {
+	before()
+	defer after()
+	rag := RAG.Rag
+	// read the query from the file query.txt
+	query, err := os.ReadFile("testIO/query.txt")
+	if err != nil {
+		log.Fatalf("Failed to read query file: %v", err)
+	}
+
+	matches, err := rag.Match("schemas-json", string(query), 5)
+	if err != nil {
+		log.Fatalf("Failed to match query: %v", err)
+	}
+	str := ""
+	for _, match := range matches {
+		str += fmt.Sprintf("Match: %s, Score: %f\n", match.Vector.Id, match.Score)
+	}
+	os.WriteFile("testIO/matches.txt", []byte(str), 0644)
+
+}
+
+func TestMatchWithRest(t *testing.T) {
+	before()
+	defer after()
+	rag := RAG.Rag
+	// read the query from the file query.txt
+	query, err := os.ReadFile("testIO/query.txt")
+	if err != nil {
+		log.Fatalf("Failed to read query file: %v", err)
+	}
+	// embed the query
+	queryEmbedding, err := rag.Embed(string(query))
+	if err != nil {
+		log.Fatalf("Failed to embed query: %v", err)
+	}
+	// use the rest api to match the query
+	body := map[string]interface{}{
+		"vector": queryEmbedding,
+		"topK":   10,
+	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		log.Fatalf("Failed to marshal body: %v", err)
+	}
+
+	requesrURL := "https://" + os.Getenv("PINECONE_INDEX_HOST") + "/query"
+	request, err := http.NewRequest("POST", requesrURL, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		log.Fatalf("Failed to create request: %v", err)
+	}
+	request.Header.Set("Api-Key", os.Getenv("PINECONE_API_KEY"))
+	request.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	response, err := client.Do(request)
+	if err != nil {
+		log.Fatalf("Failed to make request: %v", err)
+	}
+	defer response.Body.Close()
+
+	// save the response to the file response.txt
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Fatalf("Failed to read response body: %v", err)
+	}
+	os.WriteFile("testIO/response.txt", responseBody, 0644)
 }

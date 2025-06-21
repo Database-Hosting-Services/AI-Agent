@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/generative-ai-go/genai"
 	"github.com/joho/godotenv"
-	"github.com/pinecone-io/go-pinecone/pinecone"
+	"github.com/pinecone-io/go-pinecone/v4/pinecone"
 	"google.golang.org/api/option"
 )
 
