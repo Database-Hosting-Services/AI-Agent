@@ -18,9 +18,9 @@ func before() {
 		Tables: map[string]RAG.TableInfo{
 			"users": {
 				Columns: map[string]RAG.ColumnInfo{
-					"id": {Type: "INTEGER", IsPrimary: true},
-					"name": {Type: "TEXT"},
-					"email": {Type: "TEXT", IsIndex: true},
+					"id":       {Type: "INTEGER", IsPrimary: true},
+					"name":     {Type: "TEXT"},
+					"email":    {Type: "TEXT", IsIndex: true},
 					"password": {Type: "TEXT"},
 				},
 				PrimaryKeys: []string{"id"},
@@ -66,7 +66,7 @@ func TestRAG(t *testing.T) {
 	}
 
 	// query the agent
-	response, err := rag.QueryAgent("test", string(schema), string(query), 5)
+	response, err := rag.QueryAgent("schemas-json", string(schema), string(query), 5)
 	if err != nil {
 		log.Fatalf("Failed to query agent: %v", err)
 	}
