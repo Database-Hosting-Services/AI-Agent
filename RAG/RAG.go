@@ -134,6 +134,8 @@ func (r *RAGConfig) CheckIndexStats(namespace string) error {
 	return nil
 }
 
+// QueryAgent queries the agent with the given namespace, schema, query, and topK
+// this is the main function that will be used to query in agent mode and get the response
 func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error) {
 	if topK == 0 {
 		topK = DEFAULT_TOP_K
