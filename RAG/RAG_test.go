@@ -18,10 +18,10 @@ func before() {
 		Tables: map[string]RAG.TableInfo{
 			"users": {
 				Columns: map[string]RAG.ColumnInfo{
-					"id": {Type: "int", IsPrimary: true},
-					"name": {Type: "string"},
-					"email": {Type: "string", IsIndex: true},
-					"password": {Type: "string"},
+					"id": {Type: "INTEGER", IsPrimary: true},
+					"name": {Type: "TEXT"},
+					"email": {Type: "TEXT", IsIndex: true},
+					"password": {Type: "TEXT"},
 				},
 				PrimaryKeys: []string{"id"},
 			},
