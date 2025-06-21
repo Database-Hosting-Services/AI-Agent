@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	github.com/google/generative-ai-go v0.20.1
 	github.com/joho/godotenv v1.5.1
-	github.com/pinecone-io/go-pinecone v1.1.1
 	github.com/pinecone-io/go-pinecone/v4 v4.0.1
 	google.golang.org/api v0.186.0
 )

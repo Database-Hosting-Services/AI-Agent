@@ -55,21 +55,10 @@ func (r *RAGConfig) Match(namespace string, query string, topK int) ([]*pinecone
 		return nil, err
 	}
 
-	// get the topK results from the vector store
-	indexConn, err := r.DbClient.Index(pinecone.NewIndexConnParams{
-		Host:      r.IndexHost,
-		Namespace: namespace,
-	})
-	if err != nil {
-		log.Printf("ERROR: Failed to connect to index: %v", err)
-		return nil, err
-	}
-	defer indexConn.Close()
-
 	// start a timer
 	startTime := time.Now()
 	// query the vector store
-	results, err := indexConn.QueryByVectorValues(context.Background(), &pinecone.QueryByVectorValuesRequest{
+	results, err := r.IndexConn.QueryByVectorValues(context.Background(), &pinecone.QueryByVectorValuesRequest{
 		Vector:          queryEmbedding,
 		TopK:            uint32(topK),
 		IncludeMetadata: true,

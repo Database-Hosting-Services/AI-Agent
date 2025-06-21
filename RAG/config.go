@@ -15,10 +15,11 @@ import (
 )
 
 type RAGConfig struct {
-	DbClient       *pinecone.Client
-	GeminiClient   *genai.Client
-	IndexHost      string
-	EmbeddingModel *genai.EmbeddingModel
+	DbClient        *pinecone.Client
+	IndexConn       *pinecone.IndexConnection
+	GeminiClient    *genai.Client
+	IndexHost       string
+	EmbeddingModel  *genai.EmbeddingModel
 	GenerativeModel *genai.GenerativeModel
 }
 
@@ -117,11 +118,30 @@ func init() {
 		log.Printf("Index dimension: %d\n", idx.Dimension)
 	}
 
+	// get the topK results from the vector store
+	indexConn, err := pineconeClient.Index(pinecone.NewIndexConnParams{
+		Host:      indexHost,
+		Namespace: "schemas-json",
+	})
+	if err != nil {
+		log.Printf("ERROR: Failed to connect to index: %v", err)
+		geminiClient.Close()
+		log.Fatalf("Failed to connect to index: %v", err)
+	}
+
+	// check the index stats
+	_, err = indexConn.DescribeIndexStats(context.Background()) // this would take some time to complete handshake and stuff XD
+	if err != nil {
+		geminiClient.Close()
+		log.Fatalf("Failed to describe index stats: %v", err)
+	}
+
 	Rag = &RAGConfig{
-		GeminiClient: geminiClient,
-		DbClient:     pineconeClient,
-		IndexHost:    indexHost,
-		EmbeddingModel: embeddingModel,
+		GeminiClient:    geminiClient,
+		DbClient:        pineconeClient,
+		IndexConn:       indexConn,
+		IndexHost:       indexHost,
+		EmbeddingModel:  embeddingModel,
 		GenerativeModel: generativeModel,
 	}
 }
