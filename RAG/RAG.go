@@ -74,67 +74,6 @@ func (r *RAGConfig) Match(namespace string, query string, topK int) ([]*pinecone
 	return results.Matches, nil
 }
 
-// CheckIndexStats checks the statistics of the Pinecone index
-func (r *RAGConfig) CheckIndexStats(namespace string) error {
-	log.Printf("=== CHECKING INDEX STATISTICS ===")
-
-	// Get index description
-	indexName := os.Getenv("PINECONE_INDEX_NAME")
-	if indexName == "" {
-		indexName = "knowledge-index"
-	}
-
-	idx, err := r.DbClient.DescribeIndex(context.Background(), indexName)
-	if err != nil {
-		log.Printf("ERROR: Failed to describe index: %v", err)
-		return err
-	}
-
-	log.Printf("Index name: %s", idx.Name)
-	log.Printf("Index dimension: %d", idx.Dimension)
-	log.Printf("Index metric: %s", idx.Metric)
-	log.Printf("Index host: %s", idx.Host)
-	log.Printf("Index status: %s", idx.Status.State)
-
-	// Connect to index to get stats
-	indexConn, err := r.DbClient.Index(pinecone.NewIndexConnParams{
-		Host:      r.IndexHost,
-		Namespace: namespace,
-	})
-	if err != nil {
-		log.Printf("ERROR: Failed to connect to index for stats: %v", err)
-		return err
-	}
-	defer indexConn.Close()
-
-	// Get index statistics
-	stats, err := indexConn.DescribeIndexStats(context.Background())
-	if err != nil {
-		log.Printf("ERROR: Failed to get index stats: %v", err)
-		return err
-	}
-
-	log.Printf("Total vector count: %d", stats.TotalVectorCount)
-	log.Printf("Index fullness: %f", stats.IndexFullness)
-
-	if stats.Namespaces != nil {
-		log.Printf("Available namespaces:")
-		for ns, nsStats := range stats.Namespaces {
-			log.Printf("  Namespace '%s': %d vectors", ns, nsStats.VectorCount)
-		}
-
-		// Check if our specific namespace exists
-		if nsStats, exists := stats.Namespaces[namespace]; exists {
-			log.Printf("Target namespace '%s' has %d vectors", namespace, nsStats.VectorCount)
-		} else {
-			log.Printf("WARNING: Target namespace '%s' does not exist in index!", namespace)
-		}
-	}
-
-	log.Printf("=== END INDEX STATISTICS ===")
-	return nil
-}
-
 // QueryAgent queries the agent with the given namespace, schema, query, and topK
 // this is the main function that will be used to query in agent mode and get the response
 func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error) {
@@ -143,7 +82,7 @@ func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, to
 	}
 
 	// Check index statistics for debugging
-	// if err := r.CheckIndexStats(namespace); err != nil {
+	// if err := r.checkIndexStats(namespace); err != nil {
 	// 	log.Printf("Warning: Could not check index stats: %v", err)
 	// }
 
@@ -203,6 +142,33 @@ func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, to
 		SchemaChanges: schemaChanges,
 		SchemaDDL:     schemaDDL,
 	}, nil
+}
+
+// generate a report to a project manager based on the analytics of there database
+// the report should be in a markdown format
+func (r *RAGConfig) Report(analytics string, schema string) (string, error) {
+	// get the prompt
+	prompt := fmt.Sprintf(REPORT_PROMPT_TEMPLATE, "resources: none", analytics, schema)
+
+	// get the model
+	model := r.GenerativeModel
+
+	// start a timer
+	startTime := time.Now()
+	// get the response
+	response, err := model.GenerateContent(context.Background(), genai.Text(prompt))
+	if err != nil {
+		return "", err
+	}
+	log.Printf("INFO: generating the report took ==> %f seconds", time.Since(startTime).Seconds())
+	// concatenate the response
+	responseText := ""
+	for _, part := range response.Candidates[0].Content.Parts {
+		if textPart, ok := part.(genai.Text); ok {
+			responseText += string(textPart)
+		}
+	}
+	return responseText, nil
 }
 
 func (r *RAGConfig) fetchResourcesConcurrently(resources chan string, matches []*pinecone.ScoredVector, topK int) {
@@ -300,29 +266,64 @@ func (r *RAGConfig) fetchResourcesConcurrently(resources chan string, matches []
 	// Close the resources channel to signal completion
 	close(resources)
 }
-// generate a report to a project manager based on the analytics of there database
-// the report should be in a markdown format
-func (r *RAGConfig) Report(analytics string, schema string) (string, error) {
-	// get the prompt
-	prompt := fmt.Sprintf(REPORT_PROMPT_TEMPLATE, "resources: none", analytics, schema)
 
-	// get the model
-	model := r.GenerativeModel
+// CheckIndexStats checks the statistics of the Pinecone index
+func (r *RAGConfig) checkIndexStats(namespace string) error {
+	log.Printf("=== CHECKING INDEX STATISTICS ===")
 
-	// start a timer
-	startTime := time.Now()
-	// get the response
-	response, err := model.GenerateContent(context.Background(), genai.Text(prompt))
-	if err != nil {
-		return "", err
+	// Get index description
+	indexName := os.Getenv("PINECONE_INDEX_NAME")
+	if indexName == "" {
+		indexName = "knowledge-index"
 	}
-	log.Printf("INFO: generating the report took ==> %f seconds", time.Since(startTime).Seconds())
-	// concatenate the response
-	responseText := ""
-	for _, part := range response.Candidates[0].Content.Parts {
-		if textPart, ok := part.(genai.Text); ok {
-			responseText += string(textPart)
+
+	idx, err := r.DbClient.DescribeIndex(context.Background(), indexName)
+	if err != nil {
+		log.Printf("ERROR: Failed to describe index: %v", err)
+		return err
+	}
+
+	log.Printf("Index name: %s", idx.Name)
+	log.Printf("Index dimension: %d", idx.Dimension)
+	log.Printf("Index metric: %s", idx.Metric)
+	log.Printf("Index host: %s", idx.Host)
+	log.Printf("Index status: %s", idx.Status.State)
+
+	// Connect to index to get stats
+	indexConn, err := r.DbClient.Index(pinecone.NewIndexConnParams{
+		Host:      r.IndexHost,
+		Namespace: namespace,
+	})
+	if err != nil {
+		log.Printf("ERROR: Failed to connect to index for stats: %v", err)
+		return err
+	}
+	defer indexConn.Close()
+
+	// Get index statistics
+	stats, err := indexConn.DescribeIndexStats(context.Background())
+	if err != nil {
+		log.Printf("ERROR: Failed to get index stats: %v", err)
+		return err
+	}
+
+	log.Printf("Total vector count: %d", stats.TotalVectorCount)
+	log.Printf("Index fullness: %f", stats.IndexFullness)
+
+	if stats.Namespaces != nil {
+		log.Printf("Available namespaces:")
+		for ns, nsStats := range stats.Namespaces {
+			log.Printf("  Namespace '%s': %d vectors", ns, nsStats.VectorCount)
+		}
+
+		// Check if our specific namespace exists
+		if nsStats, exists := stats.Namespaces[namespace]; exists {
+			log.Printf("Target namespace '%s' has %d vectors", namespace, nsStats.VectorCount)
+		} else {
+			log.Printf("WARNING: Target namespace '%s' does not exist in index!", namespace)
 		}
 	}
-	return responseText, nil
+
+	log.Printf("=== END INDEX STATISTICS ===")
+	return nil
 }
