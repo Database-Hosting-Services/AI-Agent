@@ -31,6 +31,7 @@ type RAGmodel interface {
 	Embed(text string) ([]float32, error)
 	Match(namespace string, query string, topK int) ([]*pinecone.ScoredVector, error)
 	QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error)
+	Report(analytics string, schema string) (string, error)
 	// Upsert(id string, vector []float32, metadata map[string]string) error
 }
 
@@ -298,4 +299,30 @@ func (r *RAGConfig) fetchResourcesConcurrently(resources chan string, matches []
 
 	// Close the resources channel to signal completion
 	close(resources)
+}
+// generate a report to a project manager based on the analytics of there database
+// the report should be in a markdown format
+func (r *RAGConfig) Report(analytics string, schema string) (string, error) {
+	// get the prompt
+	prompt := fmt.Sprintf(REPORT_PROMPT_TEMPLATE, "resources: none", analytics, schema)
+
+	// get the model
+	model := r.GenerativeModel
+
+	// start a timer
+	startTime := time.Now()
+	// get the response
+	response, err := model.GenerateContent(context.Background(), genai.Text(prompt))
+	if err != nil {
+		return "", err
+	}
+	log.Printf("INFO: generating the report took ==> %f seconds", time.Since(startTime).Seconds())
+	// concatenate the response
+	responseText := ""
+	for _, part := range response.Candidates[0].Content.Parts {
+		if textPart, ok := part.(genai.Text); ok {
+			responseText += string(textPart)
+		}
+	}
+	return responseText, nil
 }

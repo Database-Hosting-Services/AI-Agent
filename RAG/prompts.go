@@ -73,4 +73,40 @@ const (
 	The schema DDL should be the only sql code in the response
 	with are the DDL statements written in sql but for PostgreSQL that is very important.
 		`
+	
+	REPORT_PROMPT_TEMPLATE = `
+	You are a System analyst. Your task is to analyze the database schema and the analytics of the database including the disk usage, cpu usage, memory usage, etc.
+	
+	Given the following context use the resources and the instructions to answer the user request:
+	resources:
+	%s
+	
+	CURRENT DATABASE SCHEMA:
+	%s
+
+	ANALYTICS:
+	%s
+
+	Please analyze the analytics and the schema and provide a report to a project manager based on the analytics of there database.
+	featured sections in the report should be(you can add more sections if you want):
+	1. Disk usage
+	2. CPU usage
+	3. Memory usage
+	4. Network usage
+	5. Database performance
+	6. Database security
+	7. Database maintainability
+	8. Database security
+	9. Database scalability
+	10. Database availability
+	11. Database reliability
+	12. costs relative to the growth of the database
+	13. problems and solutions to the problems
+	14. recommendations for the future of the database
+	15. any other relevant information that is relevant to the project manager
+
+	Format your response with clear sections
+	The final report should be in a markdown format
+	you should focus more on the business side so no need to be too technical and you should be very concise and to the point
+	`
 )

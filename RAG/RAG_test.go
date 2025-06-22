@@ -13,7 +13,7 @@ import (
 	"github.com/Database-Hosting-Services/AI-Agent/RAG"
 )
 
-func before() {
+func beforeAgent() {
 	// create a new file schema.json and query.txt in the current directory
 	os.Create("testIO/schema.json")
 	os.Create("testIO/query.txt")
@@ -48,14 +48,52 @@ func before() {
 	os.WriteFile("testIO/query.txt", []byte(query), 0644)
 }
 
-func after() {
+func afterAgent() {
 	// delete the files schema.json and query.txt
 	os.Remove("testIO/schema.json")
 	os.Remove("testIO/query.txt")
 }
+
+func beforeReport() {
+	beforeAgent()
+	// create a new file analytics.json in the current directory
+	os.Create("testIO/analytics.json")
+	// write the analytics to the file analytics.json
+	analytics := RAG.Analytics{
+		MonthlyAnalytics: map[string]RAG.Analytic{
+			"2025-01": {
+				DiskUsage:    100.0,
+				CPUUsage:     100.0,
+				MemoryUsage:  100.0,
+				NetworkUsage: 100.0,
+				Costs:        100.0,
+			},
+			"2025-02": {
+				DiskUsage:    100.0,
+				CPUUsage:     100.0,
+				MemoryUsage:  100.0,
+				NetworkUsage: 100.0,
+				Costs:        100.0,
+			},
+		},
+	}
+	// write the analytics to the file analytics.json
+	text, err := json.Marshal(analytics)
+	if err != nil {
+		log.Fatalf("Failed to marshal analytics: %v", err)
+	}
+	os.WriteFile("testIO/analytics.json", text, 0644)
+}
+
+func afterReport() {
+	afterAgent()
+	// delete the file analytics.json
+	os.Remove("testIO/analytics.json")
+}
+
 func TestRAG(t *testing.T) {
-	before()
-	defer after()
+	beforeAgent()
+	defer afterAgent()
 	rag := RAG.Rag
 	// read the schema from the file schema.json
 	schema, err := os.ReadFile("testIO/schema.json")
@@ -90,8 +128,8 @@ func TestRAG(t *testing.T) {
 }
 
 func TestEmbed(t *testing.T) {
-	before()
-	defer after()
+	beforeAgent()
+	defer afterAgent()
 	rag := RAG.Rag
 	// read the query from the file query.txt
 	query, err := os.ReadFile("testIO/query.txt")
@@ -113,8 +151,8 @@ func TestEmbed(t *testing.T) {
 }
 
 func TestMatch(t *testing.T) {
-	before()
-	defer after()
+	beforeAgent()
+	defer afterAgent()
 	rag := RAG.Rag
 	// read the query from the file query.txt
 	query, err := os.ReadFile("testIO/query.txt")
@@ -135,8 +173,8 @@ func TestMatch(t *testing.T) {
 }
 
 func TestMatchWithRest(t *testing.T) {
-	before()
-	defer after()
+	beforeAgent()
+	defer afterAgent()
 	rag := RAG.Rag
 	// read the query from the file query.txt
 	query, err := os.ReadFile("testIO/query.txt")
@@ -179,4 +217,27 @@ func TestMatchWithRest(t *testing.T) {
 		log.Fatalf("Failed to read response body: %v", err)
 	}
 	os.WriteFile("testIO/response.txt", responseBody, 0644)
+}
+
+func TestReport(t *testing.T) {
+	beforeReport()
+	defer afterReport()
+	rag := RAG.Rag
+	// read the analytics from the file analytics.json
+	analytics, err := os.ReadFile("testIO/analytics.json")
+	if err != nil {
+		log.Fatalf("Failed to read analytics file: %v", err)
+	}
+	// read the schema from the file schema.json
+	schema, err := os.ReadFile("testIO/schema.json")
+	if err != nil {
+		log.Fatalf("Failed to read schema file: %v", err)
+	}
+	// generate the report
+	report, err := rag.Report(string(analytics), string(schema))
+	if err != nil {
+		log.Fatalf("Failed to generate report: %v", err)
+	}
+	// save the report to the file report.md
+	os.WriteFile("testIO/report.md", []byte(report), 0644)
 }
