@@ -241,3 +241,33 @@ func TestReport(t *testing.T) {
 	// save the report to the file report.md
 	os.WriteFile("testIO/report.md", []byte(report), 0644)
 }
+
+func TestReportUsingConfig(t *testing.T) {
+	beforeReport()
+	defer afterReport()
+	rag := RAG.GetRAG(&RAG.RAGConfig{
+		GeminiAPIKey: os.Getenv("GEMINI_API_KEY"),
+		GeminiModel: os.Getenv("GEMINI_MODEL"),
+		GeminiEmbeddingModel: os.Getenv("GEMINI_EMBEDDING_MODEL"),
+		PineconeAPIKey: os.Getenv("PINECONE_API_KEY"),
+		PineconeIndexName: os.Getenv("PINECONE_INDEX_NAME"),
+		PineconeIndexHost: os.Getenv("PINECONE_INDEX_HOST"),
+	})
+	// read the analytics from the file analytics.json
+	analytics, err := os.ReadFile("testIO/analytics.json")
+	if err != nil {
+		log.Fatalf("Failed to read analytics file: %v", err)
+	}
+	// read the schema from the file schema.json
+	schema, err := os.ReadFile("testIO/schema.json")
+	if err != nil {
+		log.Fatalf("Failed to read schema file: %v", err)
+	}
+	// generate the report
+	report, err := rag.Report(string(analytics), string(schema))
+	if err != nil {
+		log.Fatalf("Failed to generate report: %v", err)
+	}
+	// save the report to the file report.md
+	os.WriteFile("testIO/report.md", []byte(report), 0644)
+}
