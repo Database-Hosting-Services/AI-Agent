@@ -35,3 +35,15 @@ type ForeignKeyInfo struct {
 	OnDelete        *string  `json:"ON_DELETE"`
 	OnUpdate        *string  `json:"ON_UPDATE"`
 }
+
+type Analytics struct {
+	MonthlyAnalytics map[string]Analytic `json:"MONTHLY_ANALYTICS"`
+}
+
+type Analytic struct {
+	DiskUsage    float64 `json:"DISK_USAGE"`
+	CPUUsage     float64 `json:"CPU_USAGE"`
+	MemoryUsage  float64 `json:"MEMORY_USAGE"`
+	NetworkUsage float64 `json:"NETWORK_USAGE"`
+	Costs        float64 `json:"COSTS"`
+}
