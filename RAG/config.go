@@ -14,7 +14,7 @@ import (
 	"google.golang.org/api/option"
 )
 
-type RAGConfig struct {
+type RAGPineconeGemini struct {
 	DbClient        *pinecone.Client
 	IndexConn       *pinecone.IndexConnection
 	GeminiClient    *genai.Client
@@ -23,9 +23,21 @@ type RAGConfig struct {
 	GenerativeModel *genai.GenerativeModel
 }
 
-var Rag RAGmodel
+type RAGConfig struct {
+	GeminiAPIKey string
+	GeminiModel string
+	GeminiEmbeddingModel string
+	PineconeAPIKey string
+	PineconeIndexName string
+	PineconeIndexHost string
+}
 
+var rag RAGmodel
+var deploy = false
 func init() {
+	if deploy {
+		return
+	}
 	// read the dotenv file
 	// Get the current working directory
 	_, filename, _, ok := runtime.Caller(0)
@@ -136,7 +148,7 @@ func init() {
 		log.Fatalf("Failed to describe index stats: %v", err)
 	}
 
-	Rag = &RAGConfig{
+	rag = &RAGPineconeGemini{
 		GeminiClient:    geminiClient,
 		DbClient:        pineconeClient,
 		IndexConn:       indexConn,

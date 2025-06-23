@@ -2,6 +2,7 @@ package RAG
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/google/generative-ai-go/genai"
 	"github.com/pinecone-io/go-pinecone/v4/pinecone"
+	"google.golang.org/api/option"
 )
 
 const (
@@ -35,8 +37,115 @@ type RAGmodel interface {
 	// Upsert(id string, vector []float32, metadata map[string]string) error
 }
 
+func GetRAGTest() RAGmodel { // this is for testing purposes only
+	return rag
+}
+
+func GetRAG(config *RAGConfig) RAGmodel {
+	// connect to gemini API
+	if config.GeminiAPIKey == "" {
+		log.Fatal("Gemini API key is required")
+	}
+
+	// Initialize Gemini client
+	geminiClient, err := genai.NewClient(context.Background(), option.WithAPIKey(config.GeminiAPIKey))
+	if err != nil {
+		log.Fatalf("Failed to initialize Gemini client: %v", err)
+	}
+
+	// get the embedding model
+	embeddingModel := geminiClient.EmbeddingModel(config.GeminiEmbeddingModel)
+
+	if res, err := embeddingModel.EmbedContent(context.Background(), genai.Text("Hi, Gemini")); err != nil || res == nil {
+		if err == nil {
+			err = errors.New("model returned a nil result")
+		}
+		geminiClient.Close()
+		log.Fatalf("connection error while trying to connect to gemini: %s\n ERROR: %s", config.GeminiEmbeddingModel, err.Error())
+	}
+
+	// get the generative model
+	generativeModel := geminiClient.GenerativeModel(config.GeminiModel)
+	if res, err := generativeModel.GenerateContent(context.Background(), genai.Text("Hi, Gemini")); err != nil || res == nil {
+		if err == nil {
+			err = errors.New("model returned a nil result")
+		}
+		geminiClient.Close()
+		log.Fatalf("connection error while trying to connect to gemini: %s\n ERROR: %s", config.GeminiModel, err.Error())
+	}
+
+	// connect to the Vector database
+	if config.PineconeAPIKey == "" {
+		geminiClient.Close()
+		log.Fatal("Pinecone API key is required")
+	}
+
+	// Initialize Pinecone client
+	pineconeClient, err := pinecone.NewClient(pinecone.NewClientParams{
+		ApiKey: config.PineconeAPIKey,
+	})
+
+	if err != nil {
+		geminiClient.Close()
+		log.Fatalf("Failed to initialize Pinecone client: %v", err)
+	}
+
+	if _, err := pineconeClient.ListIndexes(context.Background()); err != nil {
+		geminiClient.Close()
+		log.Fatalf("connection error while trying to connect to pinecone ERROR: %s", err.Error())
+	}
+
+	// Get index name from environment variable or use default
+	if config.PineconeIndexName == "" {
+		config.PineconeIndexName = "knowledge-index" // default index name
+		log.Printf("Using default index name: %s\n", config.PineconeIndexName)
+	}
+
+	// Get index host from environment variable
+	if config.PineconeIndexHost == "" {
+		// Alternatively, you can describe the index to get the host
+		idx, err := pineconeClient.DescribeIndex(context.Background(), config.PineconeIndexName)
+		if err != nil {
+			geminiClient.Close()
+			log.Fatalf("Failed to describe index or PINECONE_INDEX_HOST not set: %v", err)
+		}
+		config.PineconeIndexHost = idx.Host
+		log.Printf("Retrieved index host: %s\n", config.PineconeIndexHost)
+		log.Printf("Index dimension: %d\n", idx.Dimension)
+	}
+
+	// get the topK results from the vector store
+	indexConn, err := pineconeClient.Index(pinecone.NewIndexConnParams{
+		Host:      config.PineconeIndexHost,
+		Namespace: "schemas-json",
+	})
+	if err != nil {
+		log.Printf("ERROR: Failed to connect to index: %v", err)
+		geminiClient.Close()
+		log.Fatalf("Failed to connect to index: %v", err)
+	}
+
+	// check the index stats
+	_, err = indexConn.DescribeIndexStats(context.Background()) // this would take some time to complete handshake and stuff XD
+	if err != nil {
+		geminiClient.Close()
+		log.Fatalf("Failed to describe index stats: %v", err)
+	}
+
+	rag = &RAGPineconeGemini{
+		GeminiClient:    geminiClient,
+		DbClient:        pineconeClient,
+		IndexConn:       indexConn,
+		IndexHost:       config.PineconeIndexHost,
+		EmbeddingModel:  embeddingModel,
+		GenerativeModel: generativeModel,
+	}
+
+	return rag
+}
+
 // implement the RAGmodel interface for the RAGConfig
-func (r *RAGConfig) Embed(text string) ([]float32, error) {
+func (r *RAGPineconeGemini) Embed(text string) ([]float32, error) {
 	// start a timer
 	startTime := time.Now()
 	res, err := r.EmbeddingModel.EmbedContent(context.Background(), genai.Text(text))
@@ -47,7 +156,7 @@ func (r *RAGConfig) Embed(text string) ([]float32, error) {
 	return res.Embedding.Values, nil
 }
 
-func (r *RAGConfig) Match(namespace string, query string, topK int) ([]*pinecone.ScoredVector, error) {
+func (r *RAGPineconeGemini) Match(namespace string, query string, topK int) ([]*pinecone.ScoredVector, error) {
 	topK += 5 // add 5 to the topK to get more results to replace the missing ones
 	// get the embedding of the query
 	queryEmbedding, err := r.Embed(query)
@@ -76,7 +185,7 @@ func (r *RAGConfig) Match(namespace string, query string, topK int) ([]*pinecone
 
 // QueryAgent queries the agent with the given namespace, schema, query, and topK
 // this is the main function that will be used to query in agent mode and get the response
-func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error) {
+func (r *RAGPineconeGemini) QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error) {
 	if topK == 0 {
 		topK = DEFAULT_TOP_K
 	}
@@ -146,7 +255,7 @@ func (r *RAGConfig) QueryAgent(namespace string, schema string, query string, to
 
 // generate a report to a project manager based on the analytics of there database
 // the report should be in a markdown format
-func (r *RAGConfig) Report(analytics string, schema string) (string, error) {
+func (r *RAGPineconeGemini) Report(analytics string, schema string) (string, error) {
 	// get the prompt
 	prompt := fmt.Sprintf(REPORT_PROMPT_TEMPLATE, "resources: none", analytics, schema)
 
@@ -171,7 +280,7 @@ func (r *RAGConfig) Report(analytics string, schema string) (string, error) {
 	return responseText, nil
 }
 
-func (r *RAGConfig) fetchResourcesConcurrently(resources chan string, matches []*pinecone.ScoredVector, topK int) {
+func (r *RAGPineconeGemini) fetchResourcesConcurrently(resources chan string, matches []*pinecone.ScoredVector, topK int) {
 	// sort the matches by score
 	sort.Slice(matches, func(i, j int) bool {
 		return matches[i].Score > matches[j].Score
@@ -268,7 +377,7 @@ func (r *RAGConfig) fetchResourcesConcurrently(resources chan string, matches []
 }
 
 // CheckIndexStats checks the statistics of the Pinecone index
-func (r *RAGConfig) checkIndexStats(namespace string) error {
+func (r *RAGPineconeGemini) checkIndexStats(namespace string) error {
 	log.Printf("=== CHECKING INDEX STATISTICS ===")
 
 	// Get index description

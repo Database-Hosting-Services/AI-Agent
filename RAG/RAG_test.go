@@ -94,7 +94,7 @@ func afterReport() {
 func TestRAG(t *testing.T) {
 	beforeAgent()
 	defer afterAgent()
-	rag := RAG.Rag
+	rag := RAG.GetRAGTest()
 	// read the schema from the file schema.json
 	schema, err := os.ReadFile("testIO/schema.json")
 	if err != nil {
@@ -130,7 +130,7 @@ func TestRAG(t *testing.T) {
 func TestEmbed(t *testing.T) {
 	beforeAgent()
 	defer afterAgent()
-	rag := RAG.Rag
+	rag := RAG.GetRAGTest()
 	// read the query from the file query.txt
 	query, err := os.ReadFile("testIO/query.txt")
 	if err != nil {
@@ -153,7 +153,7 @@ func TestEmbed(t *testing.T) {
 func TestMatch(t *testing.T) {
 	beforeAgent()
 	defer afterAgent()
-	rag := RAG.Rag
+	rag := RAG.GetRAGTest()
 	// read the query from the file query.txt
 	query, err := os.ReadFile("testIO/query.txt")
 	if err != nil {
@@ -175,7 +175,7 @@ func TestMatch(t *testing.T) {
 func TestMatchWithRest(t *testing.T) {
 	beforeAgent()
 	defer afterAgent()
-	rag := RAG.Rag
+	rag := RAG.GetRAGTest()
 	// read the query from the file query.txt
 	query, err := os.ReadFile("testIO/query.txt")
 	if err != nil {
@@ -222,7 +222,7 @@ func TestMatchWithRest(t *testing.T) {
 func TestReport(t *testing.T) {
 	beforeReport()
 	defer afterReport()
-	rag := RAG.Rag
+	rag := RAG.GetRAGTest()
 	// read the analytics from the file analytics.json
 	analytics, err := os.ReadFile("testIO/analytics.json")
 	if err != nil {
