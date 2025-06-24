@@ -33,7 +33,7 @@ type RAGConfig struct {
 }
 
 var rag RAGmodel
-var deploy = true
+var deploy = false
 func init() {
 	if deploy {
 		return
