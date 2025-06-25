@@ -58,7 +58,7 @@ func TestChatbotConversation(t *testing.T) {
 		start := time.Now()
 
 		// Query the chatbot
-		response, err := chatbot.QueryChat("database-docs", query, 3)
+		response, err := chatbot.QueryChat("database-articles", query, 3)
 		if err != nil {
 			t.Fatalf("Failed to query chatbot for query %d: %v", i+1, err)
 		}
