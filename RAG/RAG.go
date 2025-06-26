@@ -157,6 +157,8 @@ func (r *RAGPineconeGemini) Embed(text string) ([]float32, error) {
 }
 
 func (r *RAGPineconeGemini) Match(namespace string, query string, topK int) ([]*pinecone.ScoredVector, error) {
+	// switch the namespace to the correct namespace
+	conn := r.IndexConn.WithNamespace(namespace)
 	topK += 5 // add 5 to the topK to get more results to replace the missing ones
 	// get the embedding of the query
 	queryEmbedding, err := r.Embed(query)
@@ -168,7 +170,7 @@ func (r *RAGPineconeGemini) Match(namespace string, query string, topK int) ([]*
 	// start a timer
 	startTime := time.Now()
 	// query the vector store
-	results, err := r.IndexConn.QueryByVectorValues(context.Background(), &pinecone.QueryByVectorValuesRequest{
+	results, err := conn.QueryByVectorValues(context.Background(), &pinecone.QueryByVectorValuesRequest{
 		Vector:          queryEmbedding,
 		TopK:            uint32(topK),
 		IncludeMetadata: true,
@@ -188,6 +190,12 @@ func (r *RAGPineconeGemini) Match(namespace string, query string, topK int) ([]*
 func (r *RAGPineconeGemini) QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error) {
 	if topK == 0 {
 		topK = DEFAULT_TOP_K
+	}
+
+	// if namespace is not provided, use the default namespace
+	if namespace == "" {
+		namespace = "schemas-json"
+		log.Printf("INFO: using default namespace: %s", namespace)
 	}
 
 	// Check index statistics for debugging
