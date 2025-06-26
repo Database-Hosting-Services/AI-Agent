@@ -192,6 +192,12 @@ func (r *RAGPineconeGemini) QueryAgent(namespace string, schema string, query st
 		topK = DEFAULT_TOP_K
 	}
 
+	// if namespace is not provided, use the default namespace
+	if namespace == "" {
+		namespace = "schemas-json"
+		log.Printf("INFO: using default namespace: %s", namespace)
+	}
+
 	// Check index statistics for debugging
 	// if err := r.checkIndexStats(namespace); err != nil {
 	// 	log.Printf("Warning: Could not check index stats: %v", err)
