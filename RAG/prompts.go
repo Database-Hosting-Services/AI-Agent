@@ -31,10 +31,10 @@ const (
 	resources:
 	%s
 	
-	CURRENT DATABASE SCHEMA:
+	CURRENT DATABASE SCHEMA (is SQL code):
 	%s
 	
-	The schema is provided in JSON format with the following structure:
+	The schema format that response should be in along side with the sql DDL statements:
 	{
 	  "TABLES": {
 		"table_name": {
