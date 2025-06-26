@@ -14,14 +14,31 @@ func main() {
 	fmt.Println("Database Chatbot CLI")
 	fmt.Println("====================")
 	fmt.Println("Type your database-related questions or 'exit' to quit.")
+	fmt.Println("Using the fixed namespace: database-articles")
 	fmt.Println()
 
-	chatbot := RAG.NewDbChatbot()
-	if chatbot == nil {
-		log.Fatal("Failed to create chatbot")
+	// Create RAG configuration from environment variables
+	config := &RAG.RAGConfig{
+		GeminiAPIKey:         os.Getenv("GEMINI_API_KEY"),
+		GeminiModel:          os.Getenv("GEMINI_MODEL"),
+		GeminiEmbeddingModel: os.Getenv("GEMINI_EMBEDDING_MODEL"),
+		PineconeAPIKey:       os.Getenv("PINECONE_API_KEY"),
+		PineconeIndexName:    os.Getenv("PINECONE_INDEX_NAME"),
+		PineconeIndexHost:    os.Getenv("PINECONE_INDEX_HOST"),
+	}
+
+	// Use the production RAG model, not the test version
+	ragModel := RAG.GetRAG(config)
+	if ragModel == nil {
+		log.Fatal("Failed to initialize RAG model")
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
+	// Hard-code the namespace to "database-articles" only
+	const namespace = "database-articles"
+	const topK = 3
+
+	fmt.Printf("Using fixed namespace: %s\n\n", namespace)
 
 	for {
 		fmt.Print("> ")
@@ -29,14 +46,20 @@ func main() {
 			break
 		}
 
-		userQuery := scanner.Text()
-		if strings.ToLower(userQuery) == "exit" {
+		userInput := scanner.Text()
+		if strings.ToLower(userInput) == "exit" {
 			fmt.Println("Goodbye!")
 			break
 		}
 
-		// Process the query
-		response, err := chatbot.QueryChat("database-articles", userQuery, 3) // try to replace the namespace with any invalid namespace and see the out put 
+		var responseText string
+		var sources []string
+		var err error
+
+		// Process the query using the direct RAG model with the fixed namespace
+		fmt.Printf("Searching in namespace: %s\n", namespace)
+		responseText, sources, err = ragModel.QueryChat(namespace, userInput, topK)
+
 		if err != nil {
 			fmt.Printf("Error: %v\n\n", err)
 			continue
@@ -45,14 +68,14 @@ func main() {
 		// Display the response
 		fmt.Println("\nResponse:")
 		fmt.Println("---------")
-		fmt.Println(response.Response)
+		fmt.Println(responseText)
 		fmt.Println()
 
 		// Display sources if available
-		if len(response.Sources) > 0 {
+		if len(sources) > 0 {
 			fmt.Println("Sources:")
 			fmt.Println("--------")
-			for i, source := range response.Sources {
+			for i, source := range sources {
 				fmt.Printf("%d. %s\n", i+1, source)
 			}
 			fmt.Println()

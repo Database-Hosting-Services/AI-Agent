@@ -34,6 +34,8 @@ type RAGmodel interface {
 	Match(namespace string, query string, topK int) ([]*pinecone.ScoredVector, error)
 	QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error)
 	Report(analytics string, schema string) (string, error)
+	QueryChat(namespace string, query string, topK int) (string, []string, error)
+	QueryChatMultiNamespace(namespaces []string, query string, topK int) (string, []string, error)
 	// Upsert(id string, vector []float32, metadata map[string]string) error
 }
 
@@ -114,10 +116,9 @@ func GetRAG(config *RAGConfig) RAGmodel {
 		log.Printf("Index dimension: %d\n", idx.Dimension)
 	}
 
-	// get the topK results from the vector store
+	// Connect to the index without specifying a namespace (will be set in Match function)
 	indexConn, err := pineconeClient.Index(pinecone.NewIndexConnParams{
-		Host:      config.PineconeIndexHost,
-		Namespace: "schemas-json",
+		Host: config.PineconeIndexHost,
 	})
 	if err != nil {
 		log.Printf("ERROR: Failed to connect to index: %v", err)
@@ -157,8 +158,12 @@ func (r *RAGPineconeGemini) Embed(text string) ([]float32, error) {
 }
 
 func (r *RAGPineconeGemini) Match(namespace string, query string, topK int) ([]*pinecone.ScoredVector, error) {
-	// switch the namespace to the correct namespace
-	conn := r.IndexConn.WithNamespace(namespace)
+	// Log which namespace we're querying
+	log.Printf("INFO: Querying namespace: %s", namespace)
+
+	// Create a connection with the specified namespace
+	indexConn := r.IndexConn.WithNamespace(namespace)
+
 	topK += 5 // add 5 to the topK to get more results to replace the missing ones
 	// get the embedding of the query
 	queryEmbedding, err := r.Embed(query)
@@ -169,8 +174,8 @@ func (r *RAGPineconeGemini) Match(namespace string, query string, topK int) ([]*
 
 	// start a timer
 	startTime := time.Now()
-	// query the vector store
-	results, err := conn.QueryByVectorValues(context.Background(), &pinecone.QueryByVectorValuesRequest{
+	// query the vector store with the correct namespace
+	results, err := indexConn.QueryByVectorValues(context.Background(), &pinecone.QueryByVectorValuesRequest{
 		Vector:          queryEmbedding,
 		TopK:            uint32(topK),
 		IncludeMetadata: true,
@@ -197,11 +202,6 @@ func (r *RAGPineconeGemini) QueryAgent(namespace string, schema string, query st
 		namespace = "schemas-json"
 		log.Printf("INFO: using default namespace: %s", namespace)
 	}
-
-	// Check index statistics for debugging
-	// if err := r.checkIndexStats(namespace); err != nil {
-	// 	log.Printf("Warning: Could not check index stats: %v", err)
-	// }
 
 	// get the matches
 	matches, err := r.Match(namespace, query, topK)
@@ -286,6 +286,247 @@ func (r *RAGPineconeGemini) Report(analytics string, schema string) (string, err
 		}
 	}
 	return responseText, nil
+}
+
+// QueryChat implements a specialized version of query for chat interactions
+// It retrieves data from the vector database using the specified namespace
+// and formats a response using the chatbot prompt template
+func (r *RAGPineconeGemini) QueryChat(namespace string, query string, topK int) (string, []string, error) {
+	if topK == 0 {
+		topK = DEFAULT_TOP_K
+	}
+
+	log.Printf("Processing chatbot query: %s", query)
+
+	// If namespace is not provided, use a default chatbot namespace
+	if namespace == "" {
+		namespace = "database-articles"
+		log.Printf("INFO: using default chat namespace: %s", namespace)
+	}
+
+	// Get vector matches using existing Match function
+	startTime := time.Now()
+	matches, err := r.Match(namespace, query, topK)
+	if err != nil {
+		log.Printf("ERROR: Failed to find relevant documents: %v", err)
+		return "", nil, err
+	}
+	log.Printf("INFO: Vector matching took %f seconds", time.Since(startTime).Seconds())
+
+	// Check if we found any matches
+	if len(matches) == 0 {
+		log.Printf("WARNING: No vector matches found for query in namespace %s", namespace)
+		// Return a fallback response instead of error
+		return "I don't have specific information about that. Could you rephrase your question?", nil, nil
+	}
+
+	// Extract context from matches with focus on content and source_url
+	resources := ""
+	sources := []string{}
+	sourceMap := make(map[string]bool)
+
+	for _, match := range matches {
+		resources += "--------------------------------\n"
+
+		// Extract and track source URLs
+		if url, ok := match.Vector.Metadata.Fields["source_url"]; ok {
+			sourceURL := strings.Trim(url.GetStringValue(), "\"\n \t")
+			if !sourceMap[sourceURL] {
+				sourceMap[sourceURL] = true
+				sources = append(sources, sourceURL)
+				resources += fmt.Sprintf("Source: %s\n\n", sourceURL)
+			}
+		}
+
+		// Extract content
+		if content, ok := match.Vector.Metadata.Fields["content"]; ok {
+			contentText := strings.Trim(content.GetStringValue(), "\"\n \t")
+			if contentText != "" {
+				resources += contentText + "\n"
+			} else {
+				log.Printf("WARNING: Empty content found in match with ID: %s", match.Vector.Id)
+			}
+		} else {
+			log.Printf("WARNING: No 'content' field found in metadata for match with ID: %s", match.Vector.Id)
+
+			// Fallback: try to find any text content in other metadata fields
+			for key, value := range match.Vector.Metadata.Fields {
+				if key != "source_url" && value.GetStringValue() != "" {
+					resources += fmt.Sprintf("%s: %s\n", key, value.GetStringValue())
+				}
+			}
+		}
+	}
+	resources += "--------------------------------\n"
+
+	// Log diagnostic information
+	log.Printf("Found %d matches, extracted %d unique sources", len(matches), len(sources))
+	// display the resources
+	// log.Printf("namespace: %s, topK: %d", namespace, topK)
+	// log.Printf("Extracted resources:\n%s", resources)
+	if resources == "--------------------------------\n--------------------------------\n" {
+		log.Printf("WARNING: No content extracted from matches. Check metadata structure.")
+	}
+
+	// Format prompt using the chatbot template
+	prompt := fmt.Sprintf(CHATBOT_PROMPT_TEMPLATE, resources, query)
+
+	// Generate response using the model
+	startTime = time.Now()
+	response, err := r.GenerativeModel.GenerateContent(context.Background(), genai.Text(prompt))
+	if err != nil {
+		log.Printf("ERROR: Failed to generate response: %v", err)
+		return "", nil, err
+	}
+	log.Printf("INFO: Response generation took %f seconds", time.Since(startTime).Seconds())
+
+	// Extract text from response
+	responseText := ""
+	for _, part := range response.Candidates[0].Content.Parts {
+		if textPart, ok := part.(genai.Text); ok {
+			responseText += string(textPart)
+		}
+	}
+
+	return responseText, sources, nil
+}
+
+// QueryChatMultiNamespace performs a chat query across multiple namespaces, combining the results
+// If namespaces is nil or empty, it will use the default namespace
+// This function searches each namespace separately and combines the results
+func (r *RAGPineconeGemini) QueryChatMultiNamespace(namespaces []string, query string, topK int) (string, []string, error) {
+	if topK == 0 {
+		topK = DEFAULT_TOP_K
+	}
+
+	// Handle empty namespaces list
+	if len(namespaces) == 0 {
+		defaultNamespace := "database-articles"
+		log.Printf("INFO: No namespaces specified, using default: %s", defaultNamespace)
+		return r.QueryChat(defaultNamespace, query, topK)
+	}
+
+	log.Printf("Processing multi-namespace chatbot query across %d namespaces", len(namespaces))
+
+	// Set up collection for combined results
+	combinedResources := ""
+	combinedSources := []string{}
+	sourceMap := make(map[string]bool)
+
+	// Calculate topK per namespace to maintain approximately the same total
+	nsTopK := topK / len(namespaces)
+	if nsTopK < 1 {
+		nsTopK = 1
+	}
+
+	// Create a wait group to process namespaces concurrently
+	var wg sync.WaitGroup
+	var mu sync.Mutex // For synchronizing access to combinedResources and combinedSources
+
+	// Process each namespace in parallel
+	for _, ns := range namespaces {
+		wg.Add(1)
+		go func(namespace string) {
+			defer wg.Done()
+
+			// Search this namespace
+			log.Printf("Searching namespace: %s", namespace)
+			matches, err := r.Match(namespace, query, nsTopK)
+			if err != nil {
+				log.Printf("WARNING: Error searching namespace %s: %v", namespace, err)
+				return
+			}
+
+			if len(matches) == 0 {
+				log.Printf("INFO: No matches found in namespace %s", namespace)
+				return
+			}
+
+			// Process matches for this namespace
+			nsResources := fmt.Sprintf("--- Results from namespace: %s ---\n", namespace)
+			nsSources := []string{}
+
+			for _, match := range matches {
+				nsResources += "--------------------------------\n"
+
+				// Extract source URL
+				if url, ok := match.Vector.Metadata.Fields["source_url"]; ok {
+					sourceURL := strings.Trim(url.GetStringValue(), "\"\n \t")
+
+					mu.Lock()
+					if !sourceMap[sourceURL] {
+						sourceMap[sourceURL] = true
+						nsSources = append(nsSources, sourceURL)
+						nsResources += fmt.Sprintf("Source: %s\n\n", sourceURL)
+					}
+					mu.Unlock()
+				}
+
+				// Extract content
+				if content, ok := match.Vector.Metadata.Fields["content"]; ok {
+					contentText := strings.Trim(content.GetStringValue(), "\"\n \t")
+					if contentText != "" {
+						nsResources += contentText + "\n"
+					} else {
+						log.Printf("WARNING: Empty content found in namespace %s, match ID: %s",
+							namespace, match.Vector.Id)
+					}
+				} else {
+					log.Printf("WARNING: No 'content' field in metadata for namespace %s, match ID: %s",
+						namespace, match.Vector.Id)
+
+					// Fallback: try other metadata fields
+					for key, value := range match.Vector.Metadata.Fields {
+						if key != "source_url" && value.GetStringValue() != "" {
+							nsResources += fmt.Sprintf("%s: %s\n", key, value.GetStringValue())
+						}
+					}
+				}
+			}
+			nsResources += "--------------------------------\n"
+
+			// Add this namespace's results to the combined results
+			mu.Lock()
+			combinedResources += nsResources
+			combinedSources = append(combinedSources, nsSources...)
+			mu.Unlock()
+
+		}(ns)
+	}
+
+	// Wait for all namespace searches to complete
+	wg.Wait()
+
+	// Check if we found any results
+	if combinedResources == "" {
+		log.Printf("WARNING: No matches found in any namespace")
+		return "I don't have specific information about that in any of my knowledge sources. Could you rephrase your question?", nil, nil
+	}
+
+	// Format the prompt using the chatbot template
+	prompt := fmt.Sprintf(CHATBOT_PROMPT_TEMPLATE, combinedResources, query)
+
+	// Generate response using the model
+	startTime := time.Now()
+	response, err := r.GenerativeModel.GenerateContent(context.Background(), genai.Text(prompt))
+	if err != nil {
+		log.Printf("ERROR: Failed to generate response: %v", err)
+		return "", nil, err
+	}
+	log.Printf("INFO: Response generation took %f seconds", time.Since(startTime).Seconds())
+
+	// Extract text from response
+	responseText := ""
+	for _, part := range response.Candidates[0].Content.Parts {
+		if textPart, ok := part.(genai.Text); ok {
+			responseText += string(textPart)
+		}
+	}
+
+	log.Printf("Successfully generated response from %d namespaces with %d unique sources",
+		len(namespaces), len(combinedSources))
+
+	return responseText, combinedSources, nil
 }
 
 func (r *RAGPineconeGemini) fetchResourcesConcurrently(resources chan string, matches []*pinecone.ScoredVector, topK int) {
