@@ -47,3 +47,8 @@ type Analytic struct {
 	NetworkUsage float64 `json:"NETWORK_USAGE"`
 	Costs        float64 `json:"COSTS"`
 }
+
+type ChatbotResponse struct {
+	ResponseText string   `json:"response_text"`
+	Sources      []string `json:"sources"`
+}

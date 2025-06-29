@@ -34,7 +34,7 @@ type RAGmodel interface {
 	Match(namespace string, query string, topK int) ([]*pinecone.ScoredVector, error)
 	QueryAgent(namespace string, schema string, query string, topK int) (*AgentResponse, error)
 	Report(analytics string, schema string) (string, error)
-	QueryChat(namespace string, query string, topK int) (string, []string, error)
+	QueryChat(query string) (ChatbotResponse, error)
 	// Upsert(id string, vector []float32, metadata map[string]string) error
 }
 
@@ -290,33 +290,26 @@ func (r *RAGPineconeGemini) Report(analytics string, schema string) (string, err
 // QueryChat implements a specialized version of query for chat interactions
 // It retrieves data from the vector database using the specified namespace
 // and formats a response using the chatbot prompt template
-func (r *RAGPineconeGemini) QueryChat(namespace string, query string, topK int) (string, []string, error) {
-	if topK == 0 {
-		topK = DEFAULT_TOP_K
-	}
+func (r *RAGPineconeGemini) QueryChat(query string) (ChatbotResponse, error) {
+	topK := DEFAULT_TOP_K
+	namespace := "database-articles"
 
-	log.Printf("Processing chatbot query: %s", query)
-
-	// If namespace is not provided, use a default chatbot namespace
-	if namespace == "" {
-		namespace = "database-articles"
-		log.Printf("INFO: using default chat namespace: %s", namespace)
-	}
-
-	// Get vector matches using existing Match function
 	startTime := time.Now()
 	matches, err := r.Match(namespace, query, topK)
 	if err != nil {
 		log.Printf("ERROR: Failed to find relevant documents: %v", err)
-		return "", nil, err
+		return ChatbotResponse{}, err
 	}
 	log.Printf("INFO: Vector matching took %f seconds", time.Since(startTime).Seconds())
 
-	// Check if we found any matches
+	chatFailResponse := "I don't have specific information about that. Could you rephrase your question?"
+
 	if len(matches) == 0 {
 		log.Printf("WARNING: No vector matches found for query in namespace %s", namespace)
-		// Return a fallback response instead of error
-		return "I don't have specific information about that. Could you rephrase your question?", nil, nil
+		return ChatbotResponse{
+			ResponseText: chatFailResponse,
+			Sources:      nil,
+		}, nil
 	}
 
 	// Extract context from matches with focus on content and source_url
@@ -375,7 +368,7 @@ func (r *RAGPineconeGemini) QueryChat(namespace string, query string, topK int) 
 	response, err := r.GenerativeModel.GenerateContent(context.Background(), genai.Text(prompt))
 	if err != nil {
 		log.Printf("ERROR: Failed to generate response: %v", err)
-		return "", nil, err
+		return ChatbotResponse{}, err
 	}
 	log.Printf("INFO: Response generation took %f seconds", time.Since(startTime).Seconds())
 
@@ -387,7 +380,16 @@ func (r *RAGPineconeGemini) QueryChat(namespace string, query string, topK int) 
 		}
 	}
 
-	return responseText, sources, nil
+	var chatbotResponse ChatbotResponse
+	if responseText == "" {
+		chatbotResponse.ResponseText = chatFailResponse
+		log.Printf("WARNING: Generated response is empty, using fallback response")
+	} else {
+		chatbotResponse.ResponseText = responseText
+	}
+	chatbotResponse.Sources = sources
+
+	return chatbotResponse, nil
 }
 
 
