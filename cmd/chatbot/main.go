@@ -52,13 +52,11 @@ func main() {
 			break
 		}
 
-		var responseText string
-		var sources []string
+
+		var response RAG.ChatbotResponse
 		var err error
 
-		// Process the query using the direct RAG model with the fixed namespace
-		fmt.Printf("Searching in namespace: %s\n", namespace)
-		responseText, sources, err = ragModel.QueryChat(namespace, userInput, topK)
+		response, err = ragModel.QueryChat(userInput)
 
 		if err != nil {
 			fmt.Printf("Error: %v\n\n", err)
@@ -68,14 +66,14 @@ func main() {
 		// Display the response
 		fmt.Println("\nResponse:")
 		fmt.Println("---------")
-		fmt.Println(responseText)
+		fmt.Println(response.ResponseText)
 		fmt.Println()
 
 		// Display sources if available
-		if len(sources) > 0 {
+		if len(response.Sources) > 0 {
 			fmt.Println("Sources:")
 			fmt.Println("--------")
-			for i, source := range sources {
+			for i, source := range response.Sources {
 				fmt.Printf("%d. %s\n", i+1, source)
 			}
 			fmt.Println()
