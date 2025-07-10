@@ -52,3 +52,45 @@ type ChatbotResponse struct {
 	ResponseText string   `json:"response_text"`
 	Sources      []string `json:"sources"`
 }
+
+// TableColumn represents a database column with its properties
+type TableColumn struct {
+	TableName              string  `db:"table_name" json:"TableName"`
+	ColumnName             string  `db:"column_name" json:"ColumnName"`
+	DataType               string  `db:"data_type" json:"DataType"`
+	IsNullable             bool    `db:"is_nullable" json:"IsNullable"`
+	ColumnDefault          *string `db:"column_default" json:"ColumnDefault"`
+	CharacterMaximumLength *int    `db:"character_maximum_length" json:"CharacterMaximumLength"`
+	NumericPrecision       *int    `db:"numeric_precision" json:"NumericPrecision"`
+	NumericScale           *int    `db:"numeric_scale" json:"NumericScale"`
+	OrdinalPosition        int     `db:"ordinal_position" json:"OrdinalPosition"`
+}
+
+// ConstraintInfo represents database constraints
+type ConstraintInfo struct {
+	TableName         string  `db:"table_name" json:"TableName"`
+	ConstraintName    string  `db:"constraint_name" json:"ConstraintName"`
+	ConstraintType    string  `db:"constraint_type" json:"ConstraintType"`
+	ColumnName        *string `db:"column_name" json:"ColumnName"`
+	ForeignTableName  *string `db:"foreign_table_name" json:"ForeignTableName"`
+	ForeignColumnName *string `db:"foreign_column_name" json:"ForeignColumnName"`
+	CheckClause       *string `db:"check_clause" json:"CheckClause"`
+	OrdinalPosition   *int    `db:"ordinal_position" json:"OrdinalPosition"`
+}
+
+// IndexInfo represents database indexes
+type IndexInfo struct {
+	TableName  string `db:"table_name" json:"TableName"`
+	IndexName  string `db:"index_name" json:"IndexName"`
+	ColumnName string `db:"column_name" json:"ColumnName"`
+	IsUnique   bool   `db:"is_unique" json:"IsUnique"`
+	IndexType  string `db:"index_type" json:"IndexType"`
+	IsPrimary  bool   `db:"is_primary" json:"IsPrimary"`
+}
+
+type Table struct {
+	TableName   string           `db:"table_name" json:"TableName"`
+	Columns     []TableColumn    `db:"columns" json:"Columns"`
+	Constraints []ConstraintInfo `db:"constraints" json:"Constraints"`
+	Indexes     []IndexInfo      `db:"indexes" json:"Indexes"`
+}

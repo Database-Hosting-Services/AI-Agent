@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Database-Hosting-Services/AI-Agent/RAG"
+	"github.com/stretchr/testify/assert"
 )
 
 func beforeAgent() {
@@ -43,7 +44,7 @@ func beforeAgent() {
 	add a new column to the users table for the username and
 	add a new table called orders that contains the information about orderes made by the users
 	you can add more tables if it's necessary to the relations between the users and the orders
-	but don't add more tables than necessary
+	but don't add more tables than necessary max 2 tables
 	`
 	os.WriteFile("testIO/query.txt", []byte(query), 0644)
 }
@@ -119,9 +120,11 @@ func TestRAG(t *testing.T) {
 
 	// save the full response to response.txt
 	os.WriteFile("testIO/response.md", []byte(response.Response), 0644)
-
+	log.Println(response.SchemaChanges)
+	schemaChanges, err := json.Marshal(response.SchemaChanges)
+	assert.Nil(t, err)
 	// save the schema changes to schema_changes.json
-	os.WriteFile("testIO/schema_changes.json", []byte(response.SchemaChanges), 0644)
+	os.WriteFile("testIO/schema_changes.json", schemaChanges, 0644)
 
 	// save the schema DDL to schema_ddl.sql
 	os.WriteFile("testIO/schema_ddl.sql", []byte(response.SchemaDDL), 0644)

@@ -2,6 +2,7 @@ package RAG
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,7 +26,7 @@ const (
 
 type AgentResponse struct {
 	Response      string `json:"response"`
-	SchemaChanges string `json:"schema_changes"`
+	SchemaChanges []Table `json:"schema_changes"`
 	SchemaDDL     string `json:"schema_ddl"`
 }
 
@@ -252,10 +253,14 @@ func (r *RAGPineconeGemini) QueryAgent(namespace string, schema string, query st
 	schemaChanges := strings.TrimSpace(jsonMatch[1])
 	schemaDDL := strings.TrimSpace(sqlMatch[1])
 
+	var newTables []Table
+	if err := json.Unmarshal([]byte(schemaChanges), &newTables); err != nil{
+		return nil, err
+	}
 	// Return AgentResponse
 	return &AgentResponse{
 		Response:      responseText,
-		SchemaChanges: schemaChanges,
+		SchemaChanges: newTables,
 		SchemaDDL:     schemaDDL,
 	}, nil
 }

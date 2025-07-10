@@ -34,37 +34,48 @@ const (
 	CURRENT DATABASE SCHEMA (is SQL code):
 	%s
 	
-	The schema format that response should be in along side with the sql DDL statements:
+	The schema format that response should be in along side with the sql DDL statements please be accurite and do not add any extra fields:
 	{
-	  "TABLES": {
-		"table_name": {
-		  "COLUMNS": {
-			"column_name": {
-			  "TYPE": "data_type",
-			  "NULLABLE": true/false,
-			  "UNIQUE": true/false,
-			  "DEFAULT": "default_value",
-			  "CHECKS": [],
-			  "IS_PRIMARY": true/false,
-			  "IS_INDEX": true/false,
-			  "COMMENT": "column description"
-			}
-		  },
-		  "PRIMARY_KEYS": ["column1", "column2"],
-		  "FOREIGN_KEYS": [
+		[
 			{
-			  "COLUMNS": ["local_column"],
-			  "FOREIGN_TABLE": "referenced_table",
-			  "REFERRED_COLUMNS": ["referenced_column"],
-			  "ON_DELETE": "CASCADE/RESTRICT/SET NULL",
-			  "ON_UPDATE": "CASCADE/RESTRICT/SET NULL"
+				"TableName": "",
+				"Columns": [
+					{
+						"CharacterMaximumLength": null,
+						"ColumnDefault": "",
+						"ColumnName": "",
+						"DataType": "",
+						"IsNullable": true/false,
+						"NumericPrecision": null,
+						"NumericScale": null,
+						"OrdinalPosition": 0
+						"TableName": ""
+					}
+				],
+				"Constraints": [
+					{
+						"CheckClause": "",
+						"ColumnName": "",
+						"ConstraintName": "",
+						"ConstraintType": "",
+						"ForeignColumnName": "",
+						"ForeignTableName": "",
+						"OrdinalPosition": 0,
+						"TableName": ""
+					}
+				],
+				"Indexes": [
+					{
+						"ColumnName": "",
+						"IndexName": "",
+						"IndexType": "",
+						"IsPrimary": true/false
+						"IsUnique": true/false
+						"TableName": ""
+					}
+				]
 			}
-		  ],
-		  "CHECKS": [],
-		  "INDEXES": [["column1"], ["column1", "column2"]],
-		  "COMMENT": "table description"
-		}
-	  }
+		]
 	}
 	
 	USER REQUEST:
