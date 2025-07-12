@@ -77,6 +77,20 @@ const (
 			}
 		]
 	}
+
+	Your response should include:
+	- Analysis of the current schema structure
+	- Identification of any existing design issues and solve them
+	- Specific SQL DDL statements to implement the requested changes
+	- Explanation of how the changes improve the system design
+	- Any potential risks or considerations for the modification
+	
+	Format your response with clear sections and provide executable SQL when applicable.
+	The final schema changes should be the only json code in the response do not add any comments in the code and should be in the json format provided above and in a json markdown block.
+	also add a section with the DDL statements to implement the changes based on old schema(provided above in json format) and new schema(your response) this block would be an SQL block (you will write it for postgresql but the block need to be in a normal sql block).
+	
+	The schema DDL should be the only sql code in the response
+	with are the DDL statements written in sql but for PostgreSQL that is very important.
 	
 	USER REQUEST:
 	%s
@@ -92,20 +106,7 @@ const (
 	7. **Security**: Include appropriate access controls and data protection measures
 	8. **ACID Properties**: Ensure atomicity, consistency, isolation, and durability
 	
-	Your response should include:
-	- Analysis of the current schema structure
-	- Identification of any existing design issues and solve them
-	- Specific SQL DDL statements to implement the requested changes
-	- Explanation of how the changes improve the system design
-	- Any potential risks or considerations for the modification
 	
-	Format your response with clear sections and provide executable SQL when applicable.
-	The final schema changes should be headed with the keyword "SCHEMA CHANGES" and would be the only json code in the response
-	and should be in the json format provided above.
-	also add a section with headed with the keyword "Schema DDL" with the DDL statements to implement the changes based on old schema(provided above in json format) and new schema(your response).
-	
-	The schema DDL should be the only sql code in the response
-	with are the DDL statements written in sql but for PostgreSQL that is very important.
 		`
 
 	REPORT_PROMPT_TEMPLATE = `

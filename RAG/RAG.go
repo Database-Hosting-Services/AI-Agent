@@ -9,7 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
+
 	"sort"
 	"strings"
 	"sync"
@@ -243,25 +243,32 @@ func (r *RAGPineconeGemini) QueryAgent(namespace string, schema string, query st
 
 	// extract the schema changes by looking for the keyword "SCHEMA CHANGES" from the responseText
 	// Regex patterns to match code blocks
-	jsonRe := regexp.MustCompile("(?s)```json\\s*(.*?)```")
-	sqlRe := regexp.MustCompile("(?s)```sql\\s*(.*?)```")
-
-	// Extract code blocks
-	jsonMatch := jsonRe.FindStringSubmatch(responseText)
-	sqlMatch := sqlRe.FindStringSubmatch(responseText)
-	// Join the extracted lines
-	schemaChanges := strings.TrimSpace(jsonMatch[1])
-	schemaDDL := strings.TrimSpace(sqlMatch[1])
-
-	var newTables []Table
-	if err := json.Unmarshal([]byte(schemaChanges), &newTables); err != nil{
+	// jsonRe := regexp.MustCompile("```json\\s*\n([\\s\\S]*?)\n```")
+	// sqlRe := regexp.MustCompile("```sql\\s*\n([\\s\\S]*?)\n```")
+	// log.Println(responseText, "\n\n\n")
+	// // Extract code blocks
+	// jsonMatch := jsonRe.FindStringSubmatch(responseText)
+	// sqlMatch := sqlRe.FindStringSubmatch(responseText)
+	// log.Println(jsonMatch, "\n\n\n")
+	// log.Println(sqlMatch, "\n\n\n")
+	// log.Println(jsonMatch[0])
+	// // Join the extracted lines
+	// schemaChanges := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(jsonMatch[0]), "```json"), "```")
+	// schemaDDL := strings.TrimSpace(sqlMatch[0])
+	codeExtractor := NewCodeExtractor()
+	schemaChanges := codeExtractor.ExtractJSONBlocks(responseText)[0]
+	schemaDDL := codeExtractor.ExtractSQLBlocks(responseText)[0]
+	
+	// log.Println(schemaChanges.RawCode,"\n\n\n\n")
+	// log.Println(schemaDDL.Code,"\n\n\n\n")
+	var tables []Table
+	if err := json.Unmarshal([]byte(schemaChanges.RawCode), &tables); err != nil {
 		return nil, err
 	}
-	// Return AgentResponse
 	return &AgentResponse{
-		Response:      responseText,
-		SchemaChanges: newTables,
-		SchemaDDL:     schemaDDL,
+		SchemaChanges: tables,
+		SchemaDDL: schemaDDL.Code,
+		Response: responseText,
 	}, nil
 }
 
